@@ -1,0 +1,12 @@
+2026-03-29 20:00:01 - Failed login attempt for user 'admin' from IP 192.168.1.50
+2026-03-29 20:00:02 - Failed login attempt for user 'admin' from IP 192.168.1.50
+2026-03-29 20:00:03 - Failed login attempt for user 'admin' from IP 192.168.1.50
+2026-03-29 20:00:04 - Failed login attempt for user 'admin' from IP 192.168.1.50
+2026-03-29 20:00:05 - Failed login attempt for user 'admin' from IP 192.168.1.50
+2026-03-29 20:00:06 - Failed login attempt for user 'admin' from IP 192.168.1.50
+2026-03-29 20:00:07 - Failed login attempt for user 'admin' from IP 192.168.1.50
+2026-03-29 20:00:08 - GET /login?user=admin%27%20OR%201=1-- from IP 99.88.77.66
+2026-03-29 20:00:10 - Unauthorized request to /admin from IP 99.88.77.66
+2026-03-29 20:01:15 - Failed login for user 'root' from IP 10.0.0.5
+2026-03-29 20:03:22 - Failed login for user 'root' from IP 10.0.0.5
+2026-03-29 20:05:30 - User 'alice' logged in successfully from IP 10.0.0.8
