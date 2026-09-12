@@ -6,6 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Deque, Dict, Iterable, List, Optional, Tuple
+from groq import Groq
 
 import requests
 import streamlit as st
@@ -241,9 +242,15 @@ def suspicion_score(line: str) -> int:
     return s
 
 
+# Initialize the Groq client. It will automatically load the secret key 
+# from the environment or Streamlit Secrets.
+client = Groq(
+    api_key=os.environ.get("GROQ_API_KEY")
+)
+
 def ai_classify_batched(
     *,
-    model: str,
+    model: str = "llama-3.2-3b-preview",  # <-- 2. Update default model string to Groq's target
     recent_lines: List[str],
     ip: Optional[str],
     user: Optional[str],
@@ -252,18 +259,13 @@ def ai_classify_batched(
     heuristic_score: int,
 ) -> str:
     context = "\n".join(f"- {l}" for l in recent_lines[-25:])
-    # Try to help the model by providing explicit inter-arrival intervals.
-    # If timestamps can't be parsed for some lines, we omit intervals safely.
     intervals_hint: Optional[str] = None
     try:
         ts_list: List[Optional[datetime]] = []
         for l in recent_lines[-10:]:
-            # Only parse if a date pattern is present.
             if not re.search(r"\d{4}-\d{2}-\d{2}", l):
                 ts_list.append(None)
                 continue
-            # Use the existing parser; when it fails, it returns datetime.now().
-            # To reduce noise, treat "now-like" fallback as parse failure by verifying the date substring.
             ts = parse_event_time(l)
             ts_list.append(ts)
 
@@ -278,6 +280,7 @@ def ai_classify_batched(
                 intervals_hint = f"Inter-arrival intervals (seconds) between batch events: {deltas}"
     except Exception:
         intervals_hint = None
+        
     meta = {
         "ip": ip,
         "user": user,
@@ -286,6 +289,7 @@ def ai_classify_batched(
         "heuristic_score": heuristic_score,
         "batch_lines": len(recent_lines),
     }
+    
     prompt = (
         "You are a SOC analyst. Decide whether to send a phone alert.\n"
         "Rules:\n"
@@ -306,36 +310,32 @@ def ai_classify_batched(
         f"{context}\n"
     )
 
-    # Ollama HTTP call with explicit timeout so the UI can't hang indefinitely.
-    ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-    # Keep these defaults conservative so the UI never appears "hung".
-    timeout_s = float(os.getenv("OLLAMA_TIMEOUT_S", "15"))
-    num_predict = int(os.getenv("OLLAMA_NUM_PREDICT", "160"))
-    temperature = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
-
-    url = f"{ollama_host}/api/generate"
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "num_predict": num_predict,
-            "temperature": temperature,
-        },
-    }
-
+    # 3. Cloud Groq API Call replacing the legacy local HTTP request engine
     try:
-        r = requests.post(url, json=payload, timeout=timeout_s)
-        r.raise_for_status()
-        data = r.json()
-        return (data.get("response") or "").strip()
-    except Exception:
-        # Keep output format stable to avoid breaking downstream parsing.
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a professional Tier-3 automated SOC analytics assistant. Classify logs strictly according to syntax constraints."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model=model,
+            temperature=0.1,
+            max_tokens=160
+        )
+        return chat_completion.choices.message.content.strip()
+        
+    except Exception as e:
+        # Gracefully handle API rate limits or network issues down the line
         return (
             "SUSPICIOUS\n"
-            "reason: Ollama classification timed out or failed.\n"
+            f"reason: Groq API classification error: {str(e)}\n"
             "severity: 2\n"
-            "recommended_action: Monitor and correlate with other events.\n"
+            "recommended_action: Review logs locally using custom heuristic engine markers.\n"
         )
 
 
