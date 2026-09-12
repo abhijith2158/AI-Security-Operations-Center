@@ -1,3 +1,4 @@
 streamlit>=1.44,<2.0
 watchdog>=4.0,<7.0
 requests>=2.31,<3.0
+groq
